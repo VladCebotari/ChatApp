@@ -27,6 +27,7 @@ int main(){
       FD_SET(client_socket_fd,&readfds);
       int maxfd = client_socket_fd;
       int bytes;
+      
     select(maxfd+1,&readfds,NULL,NULL,NULL);  
     
     if(FD_ISSET(client_socket_fd,&readfds)){
