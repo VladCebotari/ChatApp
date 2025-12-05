@@ -20,7 +20,7 @@ int main(){
   client_socket_fd = setup_client();
   fd_set readfds;
 
- 
+  
   while(true){
       FD_ZERO(&readfds);
       FD_SET(0,&readfds);

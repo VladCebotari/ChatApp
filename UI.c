@@ -1,11 +1,55 @@
 #include <gtk/gtk.h>
+#include <pthread.h>
+#include <sys/socket.h>  
+#include <arpa/inet.h>   
+#include <unistd.h>
+#include <string.h>
+#include "UI.h"
+
+
+GtkWidget *chat_area = NULL;
+extern int global_socket_fd;
+extern void *recv_thread_func(void *arg);
+
+gboolean ui_display_message(gpointer user_data){
+  char *msg = (char*)user_data;
+
+  GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(chat_area));
+  GtkTextIter end;
+  gtk_text_buffer_get_end_iter(buffer,&end);
+  gtk_text_buffer_insert(buffer,&end,msg,-1);
+
+  if (msg[0] != '\0' && msg[strlen(msg) - 1] != '\n') {
+            gtk_text_buffer_insert(buffer, &end, "\n", -1);
+        }
+    
+  g_free(msg);
+  return FALSE;
+
+}
+
 
 void on_send_clicked(GtkButton *button,gpointer user_data){
   GtkEditable *entry = GTK_EDITABLE(user_data);
   const char *text = gtk_editable_get_text(entry);
   if(text && *text){
-    g_print("Message: %s\n",text);
-    gtk_editable_set_text(entry,"");
+    if(global_socket_fd != -1){
+      char full_msg[512]; 
+      snprintf(full_msg, sizeof(full_msg), "%s\n", text);
+
+      ssize_t sent = send(global_socket_fd,text,strlen(text),0);
+        if(sent == -1){
+          perror("send failed");
+        }
+    }
+
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(chat_area));
+    GtkTextIter end;
+    gtk_text_buffer_get_end_iter(buffer, &end);
+    gtk_text_buffer_insert(buffer, &end, text, -1);
+    gtk_text_buffer_insert(buffer, &end, "\n", -1);
+
+    gtk_editable_set_text(entry, "");
   }
 }
 
@@ -25,7 +69,7 @@ void activate(GtkApplication* app,gpointer data){
   GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_window_set_child(GTK_WINDOW(window), main_box);
 
-  GtkWidget *chat_area = gtk_text_view_new();
+  chat_area = gtk_text_view_new();
   gtk_text_view_set_editable(GTK_TEXT_VIEW(chat_area), FALSE);
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(chat_area), GTK_WRAP_WORD_CHAR);
   gtk_widget_set_vexpand(chat_area, TRUE);
@@ -49,15 +93,7 @@ void activate(GtkApplication* app,gpointer data){
   
   gtk_window_present(GTK_WINDOW(window));
 
-}
+  pthread_t recv_thread;
+  pthread_create(&recv_thread,NULL,recv_thread_func,NULL);
 
-
-int main(int argc, char** argv) {
-  GtkApplication* chatapp = gtk_application_new("com.vlad.chatapp",G_APPLICATION_DEFAULT_FLAGS);
-  g_signal_connect(G_APPLICATION(chatapp),"activate",G_CALLBACK(activate),NULL);
-
- 
-  int status = g_application_run(G_APPLICATION(chatapp),argc,argv);
-  g_object_unref(chatapp);
-  return status;
 }
